@@ -37,7 +37,10 @@ public class RDMAServer extends Thread {
                 Future<Integer> len = reader.getBlockFuture(0, buf);
 
                 System.out.println(len.get());
-
+                buf.flip();
+                for (int i = 0; i < buf.limit(); i++){
+                    System.out.print((char)buf.get());
+                }
                 server.close();
             } catch (IOException | InterruptedException | ExecutionException e) {
                 e.printStackTrace();
