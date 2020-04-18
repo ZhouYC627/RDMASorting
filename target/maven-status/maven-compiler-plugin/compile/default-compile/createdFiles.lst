@@ -1,0 +1,11 @@
+rdma/MapperEndpoint.class
+rdma/Server.class
+rdma/MemoryInfo.class
+rdma/ClientEndpoint.class
+rdma/CmdLineCommon.class
+rdma/RdmaProcess.class
+rdma/ServerConnectionEndpoint.class
+rdma/RdmaConfigs.class
+rdma/Client.class
+rdma/MemoryManager.class
+rdma/MapperServerEndpointFactory.class
