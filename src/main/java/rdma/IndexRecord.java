@@ -1,3 +1,5 @@
+package rdma;
+
 public class IndexRecord {
   public long startOffset;
   public long rawLength;

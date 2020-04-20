@@ -1,3 +1,5 @@
+package rdma;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.*;
@@ -19,6 +21,7 @@ public class LoadDisk {
         executor.scheduleAtFixedRate(f, 1000, 1000, TimeUnit.MILLISECONDS);
          */
 
+/*
         int port = Integer.parseInt(args[0]);
         ExecutorService executor = Executors.newFixedThreadPool(3);
         try {
@@ -28,6 +31,7 @@ public class LoadDisk {
         } finally {
             executor.shutdown();
         }
+*/
 
     }
 }

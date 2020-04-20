@@ -3,18 +3,26 @@ package rdma;
 import com.ibm.disni.util.DiSNILogger;
 import com.ibm.disni.verbs.IbvMr;
 import com.ibm.disni.verbs.IbvSendWR;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class RdmaProcess implements Runnable {
     private ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
     private final MemoryManager memoryManager;
-    //TODO MAP<mapId, MapOutputReader> map
+    private Hashtable<Integer, MapOutputReader> readers;
+    private List<Future<Integer>> bufferFutures;
+    private final Logger LOGGER = DiSNILogger.getLogger();
 
-    RdmaProcess(ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer) {
+    RdmaProcess(ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer, Hashtable<Integer, MapOutputReader> readers) {
         this.pendingRequestsFromReducer = pendingRequestsFromReducer;
         ByteBuffer[] totalMemoryBlocks = new ByteBuffer[RdmaConfigs.TOTAL_MEMORY_BLOCK];
         for (int i = 0; i < totalMemoryBlocks.length; i++) {
@@ -23,8 +31,8 @@ public class RdmaProcess implements Runnable {
         memoryManager = new MemoryManager(totalMemoryBlocks);
         DiSNILogger.getLogger().info("Initiating Memory Manager");
 
-        //TODO LoaderServer
-        //TODO FutureHandler
+        this.readers = readers;
+        this.bufferFutures = new ArrayList<Future<Integer>>();
     }
 
 
@@ -32,6 +40,12 @@ public class RdmaProcess implements Runnable {
     public void run() {
         while (true) {
             try {
+                // Wait until the outputfile is
+                if (readers.isEmpty()){
+                    Thread.sleep(100);
+                    continue;
+                }
+
                 DiSNILogger.getLogger().info("Rdma Process running.... waiting for Requests");
                 MapperEndpoint endpoint = pendingRequestsFromReducer.take();
                 endpoint.getPostRecv().execute();
@@ -49,13 +63,22 @@ public class RdmaProcess implements Runnable {
                 recvBuffer.clear();
                 DiSNILogger.getLogger().info("receiving rdma information, addr " + addr + ", length " + length + ", key " + rkey);
                 DiSNILogger.getLogger().info("waking up a loading thread to get mapperId " + mapperId + " for reducerId " + reducerId);
-                //TODO check if the reader has been processed for this mapperId
+
+                // check if the reader has been processed for this mapperId
+                if (!readers.contains(mapperId)){
+                    LOGGER.info("Cannot find MapOutputFile: " + mapperId);
+                    continue;
+                }
+                MapOutputReader reader = readers.get(mapperId);
 
                 MemoryInfo freeMemory = memoryManager.getFreeMemory();
                 DiSNILogger.getLogger().info("Using memory index" + freeMemory.getIndex());
                 ByteBuffer sendBuf = freeMemory.getByteBuffer();
 
-                //TODO get(reducerId, sendBuf) return Future
+                // get(reducerId, sendBuf) return Future
+                bufferFutures.add(reader.getBlockFuture(reducerId, sendBuf));
+                LOGGER.info("Read from MapOutputFile. length: "+ bufferFutures.get(bufferFutures.size()-1).get());
+
 
                 IbvMr writeMr = endpoint.registerMr(sendBuf);
                 sendBuf.asCharBuffer().put("This is Required data for reducer from Mapper");
@@ -85,7 +108,7 @@ public class RdmaProcess implements Runnable {
 
                 Thread.sleep(1000);
 
-            } catch (InterruptedException | IOException e) {
+            } catch (InterruptedException | IOException | ExecutionException e) {
                 e.printStackTrace();
             }
         }

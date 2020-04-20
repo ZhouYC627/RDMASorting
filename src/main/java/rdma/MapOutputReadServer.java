@@ -1,17 +1,23 @@
+package rdma;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-public class RDMAServer extends Thread {
+public class MapOutputReadServer extends Thread {
     private ServerSocket serverSocket;
+    private Hashtable<Integer, MapOutputReader> readers;
 
-    public RDMAServer(int port) throws IOException{
+    public MapOutputReadServer(int port, Hashtable<Integer, MapOutputReader> readers) throws IOException{
         serverSocket = new ServerSocket(port);
+        this.readers = readers;
         ///serverSocket.setSoTimeout(50000);
     }
 
@@ -27,11 +33,14 @@ public class RDMAServer extends Thread {
 
                 DataInputStream in = new DataInputStream(server.getInputStream());
                 String outputName = in.readUTF();
+                int partitions = in.readInt();
+                int mapperId = in.readInt();
                 System.out.println(outputName);
-                ArrayList<IndexRecord> indexList = getIndexList(in);
+                ArrayList<IndexRecord> indexList = getIndexList(in, partitions);
 
                 MapOutputReader reader = new MapOutputReader(outputName, indexList);
-
+                readers.put(mapperId, reader);
+                /*
                 // Read a 64*1024 bytebuffer to buf
                 ByteBuffer buf = ByteBuffer.allocate(reader.BLOCK_SIZE);
                 Future<Integer> len = reader.getBlockFuture(0, buf);
@@ -40,17 +49,16 @@ public class RDMAServer extends Thread {
                 buf.flip();
                 for (int i = 0; i < buf.limit(); i++){
                     System.out.print((char)buf.get());
-                }
+                }*/
                 server.close();
-            } catch (IOException | InterruptedException | ExecutionException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private ArrayList<IndexRecord> getIndexList(DataInputStream in) throws IOException {
+    private ArrayList<IndexRecord> getIndexList(DataInputStream in, int partitions) throws IOException {
 
-        int partitions = in.readInt();
         ArrayList<IndexRecord> indexList = new ArrayList<>();
 
         for (int i = 0; i < partitions; i++){

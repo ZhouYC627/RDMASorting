@@ -6,6 +6,7 @@ import com.ibm.disni.util.DiSNILogger;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Hashtable;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +19,9 @@ public class ServerConnectionEndpoint implements Runnable{
     private final ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
 
     private final ExecutorService executorService;
+    private Hashtable<Integer, MapOutputReader> readers;
+
+    private final int HADOOP_PORT = 5500;
 
 
     ServerConnectionEndpoint(InetSocketAddress addr) throws Exception {
@@ -35,8 +39,11 @@ public class ServerConnectionEndpoint implements Runnable{
 //        totalBuffer.clear()
 //        IbvMr totalMr = serverEndpoint.registerMemory(totalBuffer).execute().getMr();
 
-        executorService = Executors.newFixedThreadPool(1);
-        executorService.submit(new RdmaProcess(pendingRequestsFromReducer));
+        executorService = Executors.newFixedThreadPool(3);
+        readers = new Hashtable<>();
+        executorService.submit(new RdmaProcess(pendingRequestsFromReducer, readers));
+        executorService.submit(new MapOutputReadServer(HADOOP_PORT, readers));
+
     }
 
     @Override
