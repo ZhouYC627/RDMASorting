@@ -60,28 +60,33 @@ public class RdmaProcess implements Runnable {
                 int rkey = recvBuffer.getInt();
                 int mapperId = recvBuffer.getInt();
                 int reducerId = recvBuffer.getInt();
+                mapperId = 0;
+                reducerId = 0;
                 recvBuffer.clear();
                 DiSNILogger.getLogger().info("receiving rdma information, addr " + addr + ", length " + length + ", key " + rkey);
                 DiSNILogger.getLogger().info("waking up a loading thread to get mapperId " + mapperId + " for reducerId " + reducerId);
 
                 // check if the reader has been processed for this mapperId
-                if (!readers.contains(mapperId)){
+                if (!readers.containsKey(mapperId)){
                     LOGGER.info("Cannot find MapOutputFile: " + mapperId);
                     continue;
                 }
                 MapOutputReader reader = readers.get(mapperId);
+                LOGGER.info("Reader: " + reader.getOutputFileName());
 
                 MemoryInfo freeMemory = memoryManager.getFreeMemory();
                 DiSNILogger.getLogger().info("Using memory index" + freeMemory.getIndex());
                 ByteBuffer sendBuf = freeMemory.getByteBuffer();
 
                 // get(reducerId, sendBuf) return Future
-                bufferFutures.add(reader.getBlockFuture(reducerId, sendBuf));
+                Future<Integer> res = reader.getBlockFuture(reducerId, sendBuf);
+                bufferFutures.add(res);
+                LOGGER.info(String.valueOf(res.isDone()));
                 LOGGER.info("Read from MapOutputFile. length: "+ bufferFutures.get(bufferFutures.size()-1).get());
 
 
                 IbvMr writeMr = endpoint.registerMr(sendBuf);
-                sendBuf.asCharBuffer().put("This is Required data for reducer from Mapper");
+                //sendBuf.asCharBuffer().put("This is Required data for reducer from Mapper");
 
                 LinkedList<IbvSendWR> writeWr_list = endpoint.prepareRdmaWrList(writeMr, writeMr.getLength(), IbvSendWR.IBV_WR_RDMA_WRITE_WITH_IMM, addr, rkey);
 
@@ -108,7 +113,7 @@ public class RdmaProcess implements Runnable {
 
                 Thread.sleep(1000);
 
-            } catch (InterruptedException | IOException | ExecutionException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }

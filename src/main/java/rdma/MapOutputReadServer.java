@@ -33,12 +33,12 @@ public class MapOutputReadServer extends Thread {
 
                 DataInputStream in = new DataInputStream(server.getInputStream());
                 String outputName = in.readUTF();
-                int partitions = in.readInt();
                 int mapperId = in.readInt();
                 System.out.println(outputName);
-                ArrayList<IndexRecord> indexList = getIndexList(in, partitions);
+                ArrayList<IndexRecord> indexList = getIndexList(in);
 
                 MapOutputReader reader = new MapOutputReader(outputName, indexList);
+                System.out.println("Getting MapOutputReader: " + mapperId);
                 readers.put(mapperId, reader);
                 /*
                 // Read a 64*1024 bytebuffer to buf
@@ -57,9 +57,11 @@ public class MapOutputReadServer extends Thread {
         }
     }
 
-    private ArrayList<IndexRecord> getIndexList(DataInputStream in, int partitions) throws IOException {
+    private ArrayList<IndexRecord> getIndexList(DataInputStream in) throws IOException {
 
         ArrayList<IndexRecord> indexList = new ArrayList<>();
+
+        int partitions = in.readInt();
 
         for (int i = 0; i < partitions; i++){
             long startOffset = in.readLong();

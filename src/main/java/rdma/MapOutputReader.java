@@ -5,10 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 public class MapOutputReader {
 
@@ -37,14 +34,22 @@ public class MapOutputReader {
 
     }
 
-    public Future<Integer> getBlockFuture(int reduce, ByteBuffer buf){
+    public Future<Integer> getBlockFuture(int reduce, ByteBuffer buf) throws Exception {
 
         //ByteBuffer buf = ByteBuffer.allocate(BLOCK_SIZE);
+        if (reduce >= indexRecords.size()){
+            throw new Exception("No such partition for reducer " + reduce);
+        }
+        System.out.println("Reading " + BLOCK_SIZE + " from position " + currentPos[reduce] + " for reduce " + reduce);
         Callable<Integer> readTask = new ReadBlock(channels[reduce], buf);
         Future<Integer> len = executor.submit(readTask);
         currentPos[reduce] += BLOCK_SIZE;
         return len;
 
+    }
+
+    public String getOutputFileName(){
+        return outputFileName;
     }
 
     class ReadBlock implements Callable<Integer> {
