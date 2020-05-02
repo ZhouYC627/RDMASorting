@@ -2,6 +2,7 @@ package rdma;
 
 import com.ibm.disni.RdmaActiveEndpoint;
 import com.ibm.disni.RdmaActiveEndpointGroup;
+import com.ibm.disni.util.DiSNILogger;
 import com.ibm.disni.verbs.*;
 
 import java.io.IOException;
@@ -18,17 +19,11 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
     private IbvMr sendMr;
     private IbvMr recvMr;
 
-    private IbvSendWR writeWR;
     private IbvSendWR sendWR;
     private IbvRecvWR recvWR;
 
     private LinkedList<IbvSendWR> sendWR_list;
     private LinkedList<IbvRecvWR> recvWR_list;
-    private LinkedList<IbvSendWR> writeWR_list;
-
-    // scattered/gathered element
-    private IbvSge sgeWrite;
-    private LinkedList<IbvSge> sgeList_write;
 
     private IbvSge sgeSend;
     private LinkedList<IbvSge> sgeList_send;
@@ -38,6 +33,9 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
 
     private ArrayBlockingQueue<IbvWC> workCompletionEvents;
 
+    //TODO only for testing
+    private int recvId = 0;
+    private int sendId = 10;
 
     public ClientEndpoint(RdmaActiveEndpointGroup<? extends RdmaActiveEndpoint> endpointGroup, RdmaCmId idPriv, boolean serverSide) throws IOException {
         super(endpointGroup, idPriv, serverSide);
@@ -48,56 +46,69 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
 
         this.sendWR = new IbvSendWR();
         this.recvWR = new IbvRecvWR();
-        this.writeWR =  new IbvSendWR();
 
         this.sendWR_list = new LinkedList<>();
         this.recvWR_list = new LinkedList<>();
-        this.writeWR_list = new LinkedList<>();
 
         this.sgeSend = new IbvSge();
         this.sgeRecv = new IbvSge();
-        this.sgeWrite = new IbvSge();
 
         this.sgeList_send = new LinkedList<>();
         this.sgeList_recv = new LinkedList<>();
-        this.sgeList_write = new LinkedList<>();
 
         workCompletionEvents = new ArrayBlockingQueue<>(100);
     }
 
 
-    @Override
-    public void init() throws IOException {
-        super.init();
+    public void executePostRecv() throws IOException {
+        this.recvWR_list.clear();
+        this.sgeList_recv.clear();
 
-        // register the memory regions of the data buffer
-        dataMr = registerMemory(dataBuffer).execute().free().getMr();
-        sendMr = registerMemory(sendBuffer).execute().free().getMr();
-        recvMr = registerMemory(recvBuffer).execute().free().getMr();
-
-        // init a SEND request
-        sgeSend.setAddr(sendMr.getAddr());
-        sgeSend.setLength(sendMr.getLength());
-        sgeSend.setLkey(sendMr.getLkey());
-        sgeList_send.add(sgeSend);
-
-        sendWR.setWr_id(2001);
-        sendWR.setSg_list(sgeList_send);
-        sendWR.setOpcode(IbvSendWR.IBV_WR_SEND);
-        sendWR.setSend_flags(IbvSendWR.IBV_SEND_SIGNALED);
-        sendWR_list.add(sendWR);
-
-        // init a RECEIVE request
         sgeRecv.setAddr(recvMr.getAddr());
         sgeRecv.setLength(recvMr.getLength());
         sgeRecv.setLkey(recvMr.getLkey());
         sgeList_recv.add(sgeRecv);
 
-        recvWR.setWr_id(2002);
+        recvWR.setWr_id(recvId++);
         recvWR.setSg_list(sgeList_recv);
+
         recvWR_list.add(recvWR);
 
-        postRecv(recvWR_list).execute().free();
+        postRecv(recvWR_list).execute();
+        DiSNILogger.getLogger().info("PostRecv!");
+
+    }
+
+    public void executePostSend() throws IOException {
+        this.sendWR_list.clear();
+        this.sgeList_send.clear();
+
+        sgeSend.setAddr(sendMr.getAddr());
+        sgeSend.setLength(sendMr.getLength());
+        sgeSend.setLkey(sendMr.getLkey());
+        sgeList_send.add(sgeSend);
+
+        sendWR.setWr_id(sendId++);
+        sendWR.setSg_list(sgeList_send);
+        sendWR.setOpcode(IbvSendWR.IBV_WR_SEND);
+        sendWR.setSend_flags(IbvSendWR.IBV_SEND_SIGNALED);
+        sendWR_list.add(sendWR);
+
+        postSend(sendWR_list).execute();
+        DiSNILogger.getLogger().info("PostSend!");
+    }
+
+    @Override
+    public void init() throws IOException {
+        super.init();
+
+        dataMr = registerMemory(dataBuffer).execute().free().getMr();
+        sendMr = registerMemory(sendBuffer).execute().free().getMr();
+        recvMr = registerMemory(recvBuffer).execute().free().getMr();
+
+
+        // init a RECEIVE request
+        this.executePostRecv();
 
     }
 
@@ -110,18 +121,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
         return workCompletionEvents;
     }
 
-    public LinkedList<IbvSendWR> getWrList_send() {
-        return sendWR_list;
-    }
-
-    public LinkedList<IbvRecvWR> getWrList_recv() {
-        return recvWR_list;
-    }
-
-    public LinkedList<IbvSendWR> getWrList_Write() {
-        return writeWR_list;
-    }
-
     public ByteBuffer getDataBuf() {
         return dataBuffer;
     }
@@ -130,25 +129,7 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
         return sendBuffer;
     }
 
-    public ByteBuffer getRecvBuf() {
-        return recvBuffer;
-    }
-
-    public IbvSendWR getSendWR() { return sendWR; }
-
-    public IbvRecvWR getRecvWR() {
-        return recvWR;
-    }
-
-    public IbvSendWR getWriteWR() {
-        return writeWR;
-    }
-
     public IbvMr getDataMr() {
         return dataMr;
-    }
-
-    public IbvMr getSendMr() {
-        return sendMr;
     }
 }

@@ -1,7 +1,5 @@
 package rdma;
 
-
-
 import org.apache.commons.cli.ParseException;
 import org.apache.log4j.BasicConfigurator;
 
@@ -9,10 +7,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 
-public class Server {
+public class Server{
     private String host;
     private int port = 1919;
-
 
     private void launch(String[] args) throws Exception {
         CmdLineCommon cmdLine = new CmdLineCommon("Server");
@@ -31,26 +28,12 @@ public class Server {
         ServerConnectionEndpoint conn = new ServerConnectionEndpoint(addr);
         conn.run();
 
-        //conn.close();
     }
 
     public static void main(String[] args) throws Exception {
-        BasicConfigurator.configure(); // this is used to configure logger
+        BasicConfigurator.configure();
         Server simpleServer = new Server();
         simpleServer.launch(args);
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

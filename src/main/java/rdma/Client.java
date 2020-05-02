@@ -18,6 +18,10 @@ public class Client implements RdmaEndpointFactory<ClientEndpoint> {
     private String host;
     private int port;
 
+    //TODO only for testing
+    private int testing_mapperId = 0;
+    private int testing_reducerId = 100;
+
     @Override
     public ClientEndpoint createEndpoint(RdmaCmId idPriv, boolean serverSide) throws IOException {
         return new ClientEndpoint(endpointGroup, idPriv, serverSide);
@@ -25,7 +29,7 @@ public class Client implements RdmaEndpointFactory<ClientEndpoint> {
     }
 
     public void run() throws Exception {
-        endpointGroup = new RdmaActiveEndpointGroup<>(1000, false, 128, 4, 128);
+        endpointGroup = new RdmaActiveEndpointGroup<>(1000, false, 128, 8, 128);
         endpointGroup.init(this);
 
         ClientEndpoint endpoint = endpointGroup.createEndpoint();
@@ -38,39 +42,34 @@ public class Client implements RdmaEndpointFactory<ClientEndpoint> {
         InetSocketAddress _addr = (InetSocketAddress) endpoint.getDstAddr();
         DiSNILogger.getLogger().info("client connected, address " + _addr.toString());
 
-        // prepare a message to send to the mapper about the data location that it writes
-        ByteBuffer sendBuffer = endpoint.getSendBuf();
-        IbvMr dataMemoryRegion = endpoint.getDataMr();
-
         // send memory address, length and lkey to the server
-        sendBuffer.putLong(dataMemoryRegion.getAddr());
-        sendBuffer.putInt(dataMemoryRegion.getLength());
-        sendBuffer.putInt(dataMemoryRegion.getLkey());
-        sendBuffer.putInt(3);
-        sendBuffer.putInt(2);
-        sendBuffer.clear();
+        for (int i = 1; i < 10; i++) {
+            ByteBuffer sendBuffer = endpoint.getSendBuf();
+            IbvMr dataMemoryRegion = endpoint.getDataMr();
+            sendBuffer.clear();
+            sendBuffer.putLong(dataMemoryRegion.getAddr());
+            sendBuffer.putInt(dataMemoryRegion.getLkey());
+            sendBuffer.putInt(testing_mapperId++);
+            sendBuffer.putInt(testing_reducerId++);
+            sendBuffer.clear();
 
-        DiSNILogger.getLogger().info("rdma.Client::sending message");
-        endpoint.postSend(endpoint.getWrList_send()).execute().free();
+            endpoint.executePostSend();
 
-        // wait until the RDMA SEND message to be sent
-        endpoint.getWcEvents().take();
-        DiSNILogger.getLogger().info("Sending completed");
+            // wait until the RDMA SEND message to be sent
+            IbvWC sendWc = endpoint.getWcEvents().take();
+            DiSNILogger.getLogger().info("Send wr_id: " + sendWc.getWr_id() + " op: " + sendWc.getOpcode());
+            DiSNILogger.getLogger().info("Sending" + i +" completed");
 
-        // wait for the receive buffer received immediate value
-        endpoint.getWcEvents().take();
-        DiSNILogger.getLogger().info("rdma.Client::Write Completed notified by the immediate value");
+            // wait for the receive buffer received immediate value
+            IbvWC recWc = endpoint.getWcEvents().take();
+            DiSNILogger.getLogger().info("wr_id: " + recWc.getWr_id() + " op: " + recWc.getOpcode());
+            endpoint.executePostRecv();
+            ByteBuffer dataBuf = endpoint.getDataBuf();
+            dataBuf.clear();
+            DiSNILogger.getLogger().info("rdma.Client::Write" + i +" Completed notified by the immediate value");
+            DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + dataBuf.asCharBuffer().toString());
 
-        // build a RR to receive final message
-//        IbvRecvWR recvWR = endpoint.getRecvWR();
-//        recvWR.setWr_id(2002);
-//        endpoint.postRecv(endpoint.getWrList_recv());
-
-
-        ByteBuffer dataBuf = endpoint.getDataBuf();
-        DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + dataBuf.asCharBuffer().toString());
-
-//        DiSNILogger.getLogger().info("rdma.Client::final message received");
+        }
 
         //close everything
         endpoint.close();
