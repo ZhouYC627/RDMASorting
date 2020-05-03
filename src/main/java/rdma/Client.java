@@ -43,7 +43,7 @@ public class Client implements RdmaEndpointFactory<ClientEndpoint> {
         DiSNILogger.getLogger().info("client connected, address " + _addr.toString());
 
         // send memory address, length and lkey to the server
-        for (int i = 1; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             ByteBuffer sendBuffer = endpoint.getSendBuf();
             IbvMr dataMemoryRegion = endpoint.getDataMr();
             sendBuffer.clear();
@@ -56,18 +56,29 @@ public class Client implements RdmaEndpointFactory<ClientEndpoint> {
             endpoint.executePostSend();
 
             // wait until the RDMA SEND message to be sent
-            IbvWC sendWc = endpoint.getWcEvents().take();
+            IbvWC sendWc = endpoint.getSendCompletionEvents().take();
             DiSNILogger.getLogger().info("Send wr_id: " + sendWc.getWr_id() + " op: " + sendWc.getOpcode());
             DiSNILogger.getLogger().info("Sending" + i +" completed");
 
             // wait for the receive buffer received immediate value
-            IbvWC recWc = endpoint.getWcEvents().take();
+            IbvWC recWc = endpoint.getWriteCompletionEvents().take();
             DiSNILogger.getLogger().info("wr_id: " + recWc.getWr_id() + " op: " + recWc.getOpcode());
             endpoint.executePostRecv();
             ByteBuffer dataBuf = endpoint.getDataBuf();
-            dataBuf.clear();
+
             DiSNILogger.getLogger().info("rdma.Client::Write" + i +" Completed notified by the immediate value");
-            DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + dataBuf.asCharBuffer().toString());
+            dataBuf.clear();
+            //DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + dataBuf.asCharBuffer().toString());
+            int length = 0;
+            byte[] byteArray = new byte[RdmaConfigs.LOAD_SIZE];
+            while (length < dataBuf.limit()) {
+                byte b = dataBuf.get();
+                if (b == 0) {
+                    break;
+                }
+                byteArray[length++] = b;
+            }
+            DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + new String(byteArray, 0, length));
 
         }
 

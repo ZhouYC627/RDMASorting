@@ -39,9 +39,13 @@ public class RdmaProcess implements Runnable{
 
                 ByteBuffer dataBuf = endpoint.getDataBuf();
                 dataBuf.clear();
-                dataBuf = endpoint.getDataBuf();
-                dataBuf.asCharBuffer().put("This is Required data of mapperId " + mapperId + " for reducerId " + reducerId);
-                //TODO probably need to know the size of the data
+                //dataBuf.asCharBuffer().put("This is Required data of mapperId " + mapperId + " for reducerId " + reducerId);
+                String msg = "This is Required data of mapperId " + mapperId + " for reducerId " + reducerId;
+                byte[] msgArr = msg.getBytes();
+                DiSNILogger.getLogger().info("msg len: " + msgArr.length);
+                dataBuf.put(msgArr);
+
+                //TODO need to know the size of the data
                 endpoint.executeRDMAWrite(addr, lkey);
 
                 DiSNILogger.getLogger().info("MapperClient::write memory to server " + endpoint.getDstAddr());

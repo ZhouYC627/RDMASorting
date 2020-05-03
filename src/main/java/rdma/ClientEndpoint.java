@@ -32,6 +32,8 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
     private LinkedList<IbvSge> sgeList_recv;
 
     private ArrayBlockingQueue<IbvWC> workCompletionEvents;
+    private ArrayBlockingQueue<IbvWC> sendCompletionEvents;
+    private ArrayBlockingQueue<IbvWC> writeCompletionEvents;
 
     //TODO only for testing
     private int recvId = 0;
@@ -57,6 +59,8 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
         this.sgeList_recv = new LinkedList<>();
 
         workCompletionEvents = new ArrayBlockingQueue<>(100);
+        sendCompletionEvents = new ArrayBlockingQueue<>(100);
+        writeCompletionEvents = new ArrayBlockingQueue<>(100);
     }
 
 
@@ -106,7 +110,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
         sendMr = registerMemory(sendBuffer).execute().free().getMr();
         recvMr = registerMemory(recvBuffer).execute().free().getMr();
 
-
         // init a RECEIVE request
         this.executePostRecv();
 
@@ -114,7 +117,23 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
 
     @Override
     public void dispatchCqEvent(IbvWC wc) throws IOException {
-        workCompletionEvents.add(wc);
+//        workCompletionEvents.add(wc);
+//        DiSNILogger.getLogger().info(String.valueOf(wc.getOpcode()));
+
+        if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_SEND)) {
+            DiSNILogger.getLogger().info("SEND opcode: " + wc.getOpcode());
+            sendCompletionEvents.add(wc);
+        } else if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_RECV_RDMA_WITH_IMM)){
+            DiSNILogger.getLogger().info("WRITE_WITH_IMM opcode: " + wc.getOpcode());
+            writeCompletionEvents.add(wc);
+        }
+    }
+
+    public ArrayBlockingQueue<IbvWC> getSendCompletionEvents() {
+        return sendCompletionEvents;
+    }
+    public ArrayBlockingQueue<IbvWC> getWriteCompletionEvents() {
+        return writeCompletionEvents;
     }
 
     public ArrayBlockingQueue<IbvWC> getWcEvents() {

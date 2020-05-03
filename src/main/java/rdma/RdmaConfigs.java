@@ -3,7 +3,7 @@ package rdma;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RdmaConfigs {
-    public static final int LOAD_SIZE = 1024 * 64; // 64KB
+    public static final int LOAD_SIZE = 64 * 1024; // 64KB
     public static final int TOTAL_MEMORY_BLOCK = 10;
 
     public static final int SEND_RECV_SIZE = 1024; // 1KB
