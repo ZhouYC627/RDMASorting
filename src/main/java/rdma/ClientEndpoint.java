@@ -31,7 +31,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
     private IbvSge sgeRecv;
     private LinkedList<IbvSge> sgeList_recv;
 
-    private ArrayBlockingQueue<IbvWC> workCompletionEvents;
     private ArrayBlockingQueue<IbvWC> sendCompletionEvents;
     private ArrayBlockingQueue<IbvWC> writeCompletionEvents;
 
@@ -58,7 +57,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
         this.sgeList_send = new LinkedList<>();
         this.sgeList_recv = new LinkedList<>();
 
-        workCompletionEvents = new ArrayBlockingQueue<>(100);
         sendCompletionEvents = new ArrayBlockingQueue<>(100);
         writeCompletionEvents = new ArrayBlockingQueue<>(100);
     }
@@ -117,9 +115,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
 
     @Override
     public void dispatchCqEvent(IbvWC wc) throws IOException {
-//        workCompletionEvents.add(wc);
-//        DiSNILogger.getLogger().info(String.valueOf(wc.getOpcode()));
-
         if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_SEND)) {
             DiSNILogger.getLogger().info("SEND opcode: " + wc.getOpcode());
             sendCompletionEvents.add(wc);
@@ -134,10 +129,6 @@ public class ClientEndpoint extends RdmaActiveEndpoint {
     }
     public ArrayBlockingQueue<IbvWC> getWriteCompletionEvents() {
         return writeCompletionEvents;
-    }
-
-    public ArrayBlockingQueue<IbvWC> getWcEvents() {
-        return workCompletionEvents;
     }
 
     public ByteBuffer getDataBuf() {
