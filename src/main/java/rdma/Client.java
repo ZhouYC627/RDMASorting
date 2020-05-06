@@ -48,8 +48,8 @@ public class Client {
         for (int i = 0; i < 50; i++) {
             byte[] byteArray = new byte[RdmaConfigs.LOAD_SIZE];
             rdmaStream.prepareInfo(testing_mapperId++, testing_reducerId++);
-            int byteWritten = rdmaStream.read(byteArray, 0, 0);
-            DiSNILogger.getLogger().info("ByteArray" + i + ": " + new String(byteArray, 0, byteWritten));
+            int bytesWritten = rdmaStream.read(byteArray, 0, 100);
+            DiSNILogger.getLogger().info("ByteArray" + i + ": " + new String(byteArray, 0, bytesWritten));
         }
         rdmaStream.closeEndpoint();
         simpleClient.closeEndpointGroup();

@@ -37,8 +37,8 @@ public class RdmaDataInputStream extends InputStream {
 
     int i = 0;
     @Override
-    public int read(byte b[], int off, int len) throws IOException {
-        int byteWritten = 0;
+    public int read(byte[] b, int off, int len) throws IOException {
+        int bytesWritten = 0;
         try {
             endpoint.executePostSend();
 
@@ -55,20 +55,20 @@ public class RdmaDataInputStream extends InputStream {
 
             DiSNILogger.getLogger().info("rdma.Client::Write" + i++ + " Completed notified by the immediate value");
             dataBuf.clear();
-            //TODO need to handle length
-            while (byteWritten < dataBuf.limit()) {
+            // len is at most buffer's size
+            for (int j = 0; j < len; j++) {
                 byte bt = dataBuf.get();
                 if (bt == 0) {
                     break;
                 }
-                b[byteWritten++] = bt;
+                b[bytesWritten++] = bt;
             }
-            DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + new String(b, 0, byteWritten));
+            DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + new String(b, 0, bytesWritten));
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        return byteWritten;
+        return bytesWritten;
     }
 
 
