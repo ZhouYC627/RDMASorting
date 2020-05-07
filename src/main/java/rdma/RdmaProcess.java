@@ -9,9 +9,11 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 public class RdmaProcess implements Runnable{
     private ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
+    private final ArrayBlockingQueue<RdmaJob> jobQueue;
 
-    RdmaProcess(ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer) {
+    RdmaProcess(ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer, ArrayBlockingQueue<RdmaJob> jobQueue) {
         this.pendingRequestsFromReducer = pendingRequestsFromReducer;
+        this.jobQueue = jobQueue;
 
     }
 
@@ -45,13 +47,9 @@ public class RdmaProcess implements Runnable{
                 DiSNILogger.getLogger().info("msg len: " + msgArr.length);
                 dataBuf.put(msgArr);
 
-                //TODO need to know the size of the data
-                endpoint.executeRDMAWrite(addr, lkey);
-
-                DiSNILogger.getLogger().info("MapperClient::write memory to server " + endpoint.getDstAddr());
-                IbvWC writeWC = endpoint.getWritingCompletionEvents().take();
-                //TODO
-                DiSNILogger.getLogger().info("Send wr_id: " + writeWC.getWr_id() + " op: " + writeWC.getOpcode());
+                Integer fakeFuture = 1;
+                RdmaJob job = new RdmaJob(fakeFuture, endpoint, addr, lkey);
+                jobQueue.add(job);
 
 
 //                endpoint.close();
