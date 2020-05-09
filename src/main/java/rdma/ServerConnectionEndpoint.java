@@ -16,18 +16,21 @@ public class ServerConnectionEndpoint implements Runnable{
 
     // This queue contains endpoints that have already receives the information from its corresponding reducer
     private final ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
+    private final ArrayBlockingQueue<RdmaJob> jobQueue;
 
     ServerConnectionEndpoint(InetSocketAddress addr) throws Exception {
         MapperServerEndpointFactory factory = new MapperServerEndpointFactory();
         endpointGroup = factory.getEndpointGroup();
         serverEndpoint = endpointGroup.createServerEndpoint();
         pendingRequestsFromReducer = new ArrayBlockingQueue<>(100);
+        jobQueue = new ArrayBlockingQueue<>(100);
 
         serverEndpoint.bind(addr, 10);
         DiSNILogger.getLogger().info("Server bound to address" + addr.toString());
 
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-        executorService.submit(new RdmaProcess(pendingRequestsFromReducer));
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        executorService.submit(new RdmaConsumer(jobQueue));
+        executorService.submit(new RdmaProcess(pendingRequestsFromReducer, jobQueue));
     }
 
     @Override
