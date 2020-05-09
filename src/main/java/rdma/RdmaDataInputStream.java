@@ -11,22 +11,30 @@ import java.nio.ByteBuffer;
 
 public class RdmaDataInputStream extends InputStream {
     private ClientEndpoint endpoint;
+    private int mapperId;
+    private int reducerId;
+    private int length;
 
-    public RdmaDataInputStream(RdmaActiveEndpointGroup<ClientEndpoint> endpointGroup, InetSocketAddress address) throws Exception {
+    public RdmaDataInputStream(RdmaActiveEndpointGroup<ClientEndpoint> endpointGroup, InetSocketAddress address, int mapperId, int reducerId) throws Exception {
         endpoint = endpointGroup.createEndpoint();
         endpoint.connect(address, RdmaConfigs.TIMEOUT);
         InetSocketAddress _addr = (InetSocketAddress) endpoint.getDstAddr();
         DiSNILogger.getLogger().info("client connected, address " + _addr.toString());
+
+        this.mapperId = mapperId;
+        this.reducerId = reducerId;
+        this.length = 0;
     }
 
-    public void prepareInfo(int mapperId, int reducerId) throws IOException {
+    public void prepareInfo() {
         ByteBuffer sendBuffer = endpoint.getSendBuf();
         IbvMr dataMemoryRegion = endpoint.getDataMr();
         sendBuffer.clear();
         sendBuffer.putLong(dataMemoryRegion.getAddr());
         sendBuffer.putInt(dataMemoryRegion.getLkey());
-        sendBuffer.putInt(mapperId);
-        sendBuffer.putInt(reducerId);
+        sendBuffer.putInt(this.mapperId);
+        sendBuffer.putInt(this.reducerId);
+        sendBuffer.putInt(this.length);
         sendBuffer.clear();
     }
 
@@ -40,6 +48,11 @@ public class RdmaDataInputStream extends InputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         int bytesWritten = 0;
         try {
+            this.length = len;
+            this.mapperId++;
+            this.reducerId++;
+            this.prepareInfo();
+
             endpoint.executePostSend();
 
             // wait until the RDMA SEND message to be sent

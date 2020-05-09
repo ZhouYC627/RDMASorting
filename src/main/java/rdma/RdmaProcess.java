@@ -34,8 +34,9 @@ public class RdmaProcess implements Runnable{
                 int lkey = recvBuffer.getInt();
                 int mapperId = recvBuffer.getInt();
                 int reducerId = recvBuffer.getInt();
+                int length = recvBuffer.getInt();
                 recvBuffer.clear();
-                DiSNILogger.getLogger().info("information received, mapperId " + mapperId + " for reducerId " + reducerId);
+                DiSNILogger.getLogger().info("information received, mapperId " + mapperId + " for reducerId " + reducerId + " Length " + length);
 
                 ByteBuffer dataBuf = endpoint.getDataBuf();
                 dataBuf.clear();

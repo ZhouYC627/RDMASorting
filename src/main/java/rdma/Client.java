@@ -19,10 +19,10 @@ public class Client {
         endpointGroup = factory.getEndpointGroup();
     }
 
-    public RdmaDataInputStream createRdmaStream(String host, int port) throws Exception {
+    public RdmaDataInputStream createRdmaStream(String host, int port, int mapperId, int reducerId) throws Exception {
         InetAddress ipAddress = InetAddress.getByName(host);
         InetSocketAddress address = new InetSocketAddress(ipAddress, port);
-        return new RdmaDataInputStream(endpointGroup, address);
+        return new RdmaDataInputStream(endpointGroup, address, mapperId, reducerId);
     }
 
 
@@ -41,14 +41,15 @@ public class Client {
         String host = cmdLine.getIp();
         int port = cmdLine.getPort();
 
-        RdmaDataInputStream rdmaStream = simpleClient.createRdmaStream(host, port);
         int testing_mapperId = 0;
         int testing_reducerId = 100;
+        int test_len = 100;
+
+        RdmaDataInputStream rdmaStream = simpleClient.createRdmaStream(host, port, testing_mapperId, testing_reducerId);
 
         for (int i = 0; i < 50; i++) {
             byte[] byteArray = new byte[RdmaConfigs.LOAD_SIZE];
-            rdmaStream.prepareInfo(testing_mapperId++, testing_reducerId++);
-            int bytesWritten = rdmaStream.read(byteArray, 0, 100);
+            int bytesWritten = rdmaStream.read(byteArray, 0, test_len++);
             DiSNILogger.getLogger().info("ByteArray" + i + ": " + new String(byteArray, 0, bytesWritten));
         }
         rdmaStream.closeEndpoint();
