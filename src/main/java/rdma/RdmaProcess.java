@@ -18,6 +18,7 @@ public class RdmaProcess implements Runnable{
     private Hashtable<Integer, MapOutputReader> readers;
     private List<Future<Integer>> bufferFutures;
     private final Logger LOGGER;
+    private boolean localMode;
 
     RdmaProcess(ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer, Hashtable<Integer, MapOutputReader> readers) {
         this.LOGGER =  DiSNILogger.getLogger();
@@ -25,6 +26,7 @@ public class RdmaProcess implements Runnable{
         this.pendingRequestsFromReducer = pendingRequestsFromReducer;
         this.readers = readers;
         this.bufferFutures = new ArrayList<>();
+        this.localMode = false;
     }
 
     @Override
@@ -35,7 +37,7 @@ public class RdmaProcess implements Runnable{
                 MapperEndpoint endpoint = pendingRequestsFromReducer.take();
 
                 // Wait until the outputfile is ready
-                if (readers.isEmpty()){
+                if (!localMode && readers.isEmpty()){
                     Thread.sleep(100);
                     continue;
                 }
@@ -55,34 +57,45 @@ public class RdmaProcess implements Runnable{
                 recvBuffer.clear();
                 DiSNILogger.getLogger().info("information received, mapperId " + mapperId + " for reducerId " + reducerId);
 
-                // check if the reader has been processed for this mapperId
-                if (!readers.containsKey(mapperId)){
-                    LOGGER.info("Cannot find MapOutputFile: " + mapperId);
-                    continue;
-                }
-                MapOutputReader reader = readers.get(mapperId);
-
                 ByteBuffer dataBuf = endpoint.getDataBuf();
                 dataBuf.clear();
-                //dataBuf.asCharBuffer().put("This is Required data of mapperId " + mapperId + " for reducerId " + reducerId);
-                //String msg = "This is Required data of mapperId " + mapperId + " for reducerId " + reducerId;
-                //byte[] msgArr = msg.getBytes();
-                //DiSNILogger.getLogger().info("msg len: " + msgArr.length);
-                //dataBuf.put(msgArr);
 
-                // get(reducerId, sendBuf) return Future
-                //bufferFutures.add(reader.getBlockFuture(reducerId, dataBuf));
+                if (localMode) {
+                    //dataBuf.asCharBuffer().put("This is Required data of mapperId " + mapperId + " for reducerId " + reducerId);
+                    String msg = "This is Required data of mapperId " + mapperId + " for reducerId " + reducerId;
+                    byte[] msgArr = msg.getBytes();
+                    dataBuf.put(msgArr);
+                    dataBuf.flip();
+                    DiSNILogger.getLogger().info("msg len: " + dataBuf.limit());
 
-                Future<Integer> res = reader.getBlockFuture(reducerId, dataBuf);
-                bufferFutures.add(res);
-                LOGGER.info(String.valueOf(res.isDone()));
-                int len =  bufferFutures.get(bufferFutures.size()-1).get();
-                LOGGER.info("Read from MapOutputFile. length: "+ len);
+                    //get(reducerId, sendBuf) return Future
+                    //bufferFutures.add(reader.getBlockFuture(reducerId, dataBuf));
+                } else{
+                    // check if the reader has been processed for this mapperId
+                    if (!readers.containsKey(mapperId)) {
+                        LOGGER.info("Cannot find MapOutputFile: " + mapperId);
+                        continue;
+                    }
+                    MapOutputReader reader = readers.get(mapperId);
 
-                if (len<=0){
-                    LOGGER.info("Invalid read.");
-                    return;
+
+                    Future<Integer> res = reader.getBlockFuture(reducerId, dataBuf);
+                    bufferFutures.add(res);
+                    LOGGER.info(String.valueOf(res.isDone()));
+                    int len =  bufferFutures.get(bufferFutures.size()-1).get();
+                    //dataBuf.flip();
+                    LOGGER.info("Read from MapOutputFile. length: "+ len);
+
+                    if (len<0){
+                        LOGGER.info("Invalid read.");
+                        return;
+                    }
                 }
+
+
+
+
+
 
 
                 //TODO need to know the size of the data

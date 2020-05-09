@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 public class RdmaDataInputStream extends InputStream {
     private ClientEndpoint endpoint;
 
-    public RdmaDataInputStream(RdmaActiveEndpointGroup<ClientEndpoint> endpointGroup, InetSocketAddress address) throws Exception {
+     public RdmaDataInputStream(RdmaActiveEndpointGroup<ClientEndpoint> endpointGroup, InetSocketAddress address) throws Exception {
         endpoint = endpointGroup.createEndpoint();
         endpoint.connect(address, RdmaConfigs.TIMEOUT);
         InetSocketAddress _addr = (InetSocketAddress) endpoint.getDstAddr();
@@ -54,15 +54,11 @@ public class RdmaDataInputStream extends InputStream {
             ByteBuffer dataBuf = endpoint.getDataBuf();
 
             DiSNILogger.getLogger().info("rdma.Client::Write" + i++ + " Completed notified by the immediate value");
-            dataBuf.clear();
             // len is at most buffer's size
-            for (int j = 0; j < len; j++) {
-                byte bt = dataBuf.get();
-                if (bt == 0) {
-                    break;
-                }
-                b[bytesWritten++] = bt;
-            }
+            dataBuf.position(0);
+            bytesWritten = Math.min(len, dataBuf.limit());
+            dataBuf.get(b, 0, bytesWritten);
+
             DiSNILogger.getLogger().info("rdma.Client::memory is written by server: " + new String(b, 0, bytesWritten));
         } catch (InterruptedException e) {
             e.printStackTrace();

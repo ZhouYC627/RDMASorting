@@ -50,7 +50,7 @@ public class Client {
             DiSNILogger.getLogger().info("Get mapperId " + testing_mapperId + " for reducer: " + testing_reducerId);
             rdmaStream.prepareInfo(testing_mapperId, testing_reducerId);
             int bytesWritten = rdmaStream.read(byteArray, 0, 100);
-            DiSNILogger.getLogger().info("ByteArray" + i + ": " + new String(byteArray, 0, bytesWritten));
+            DiSNILogger.getLogger().info("ByteArray " + i + ": " + bytesWritten);
         }
         rdmaStream.closeEndpoint();
         simpleClient.closeEndpointGroup();
