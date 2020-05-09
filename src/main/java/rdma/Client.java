@@ -43,11 +43,12 @@ public class Client {
 
         RdmaDataInputStream rdmaStream = simpleClient.createRdmaStream(host, port);
         int testing_mapperId = 0;
-        int testing_reducerId = 100;
+        int testing_reducerId = 0;
 
         for (int i = 0; i < 50; i++) {
             byte[] byteArray = new byte[RdmaConfigs.LOAD_SIZE];
-            rdmaStream.prepareInfo(testing_mapperId++, testing_reducerId++);
+            DiSNILogger.getLogger().info("Get mapperId " + testing_mapperId + " for reducer: " + testing_reducerId);
+            rdmaStream.prepareInfo(testing_mapperId, testing_reducerId);
             int bytesWritten = rdmaStream.read(byteArray, 0, 100);
             DiSNILogger.getLogger().info("ByteArray" + i + ": " + new String(byteArray, 0, bytesWritten));
         }
