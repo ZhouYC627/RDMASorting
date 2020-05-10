@@ -42,9 +42,8 @@ public class Client {
         int port = cmdLine.getPort();
 
         int testing_mapperId = 0;
-        int testing_reducerId = 100;
+        int testing_reducerId = 0;
         int test_len = 100;
-
         RdmaDataInputStream rdmaStream = simpleClient.createRdmaStream(host, port, testing_mapperId, testing_reducerId);
 
         for (int i = 0; i < 50; i++) {

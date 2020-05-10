@@ -7,15 +7,15 @@ import java.io.IOException;
 import java.util.concurrent.Future;
 
 public class RdmaJob {
-    // private Future<Integer> future;
+    private Future<Integer> future;
     private MapperEndpoint endpoint;
     private long addr;
     private int key;
 
     //TODO future should be type Future<Integer>
-    public RdmaJob(Integer fakeFuture, MapperEndpoint endpoint, long addr, int key) {
+    public RdmaJob(Future<Integer> future, MapperEndpoint endpoint, long addr, int key) {
         // this.future = future;
-        fakeFuture = 1;
+        this.future = future;
         this.endpoint = endpoint;
         this.addr = addr;
         this.key = key;
@@ -23,7 +23,7 @@ public class RdmaJob {
 
     public boolean isDone() {
         return true;
-        // return future.isDone();
+        //return future.isDone();
     }
 
     public void sendData() throws InterruptedException, IOException {

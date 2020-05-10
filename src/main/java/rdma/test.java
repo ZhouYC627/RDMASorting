@@ -4,8 +4,8 @@ import java.nio.ByteBuffer;
 
 
 public class test {
-
-    public static void main(String[] args) {
+    /*
+        public static void main(String[] args) {
         ByteBuffer dataBuf = ByteBuffer.allocateDirect(RdmaConfigs.LOAD_SIZE);
 
         String msg = "This is Required data of mapperId " + 1 + " for reducerId " + 100;
@@ -47,5 +47,10 @@ public class test {
         }
 
         System.out.println(new String(byteArray2, 0, length2));
+    }
+
+     */
+    public static void main(String[] args) {
+        return;
     }
 }

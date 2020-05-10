@@ -6,6 +6,7 @@ import com.ibm.disni.util.DiSNILogger;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Hashtable;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
@@ -16,7 +17,9 @@ public class ServerConnectionEndpoint implements Runnable{
 
     // This queue contains endpoints that have already receives the information from its corresponding reducer
     private final ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
+    private Hashtable<Integer, MapOutputReader> readers;
     private final ArrayBlockingQueue<RdmaJob> jobQueue;
+    private final int HADOOP_PORT = 5500;
 
     ServerConnectionEndpoint(InetSocketAddress addr) throws Exception {
         MapperServerEndpointFactory factory = new MapperServerEndpointFactory();
@@ -28,9 +31,12 @@ public class ServerConnectionEndpoint implements Runnable{
         serverEndpoint.bind(addr, 10);
         DiSNILogger.getLogger().info("Server bound to address" + addr.toString());
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        readers = new Hashtable<>();
+
+        ExecutorService executorService = Executors.newFixedThreadPool(3);
+        executorService.submit(new RdmaProcess(pendingRequestsFromReducer, readers, jobQueue));
         executorService.submit(new RdmaConsumer(jobQueue));
-        executorService.submit(new RdmaProcess(pendingRequestsFromReducer, jobQueue));
+        executorService.submit(new MapOutputReadServer(HADOOP_PORT, readers));
     }
 
     @Override
