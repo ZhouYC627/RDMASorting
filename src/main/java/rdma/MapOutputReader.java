@@ -34,16 +34,17 @@ public class MapOutputReader {
 
     }
 
-    public Future<Integer> getBlockFuture(int reduce, ByteBuffer buf) throws IOException {
+    public Future<Integer> getBlockFuture(int reduce, ByteBuffer buf, int offset, int length) throws IOException {
 
         //ByteBuffer buf = ByteBuffer.allocate(BLOCK_SIZE);
         if (reduce >= indexRecords.size()){
             throw new IOException("No such partition for reducer " + reduce);
         }
-        System.out.println("Reading " + BLOCK_SIZE + " from position " + currentPos[reduce] + " for reduce " + reduce);
+        //System.out.println("Reading " + length + " from position " + currentPos[reduce] + " for reduce " + reduce);
+        buf.limit(length);
         Callable<Integer> readTask = new ReadBlock(channels[reduce], buf);
         Future<Integer> len = executor.submit(readTask);
-        currentPos[reduce] += BLOCK_SIZE;
+        currentPos[reduce] += length;
         return len;
 
     }

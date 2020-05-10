@@ -44,7 +44,7 @@ public class RdmaProcess implements Runnable{
 
                 //TODO remove After testing
                 IbvWC recWc = endpoint.getReceiveCompletionEvents().take();
-                DiSNILogger.getLogger().info("Recv wr_id: " + recWc.getWr_id() + " op: " + recWc.getOpcode());
+                //DiSNILogger.getLogger().info("Recv wr_id: " + recWc.getWr_id() + " op: " + recWc.getOpcode());
                 // Post another recv on this endpoint for further messages
                 endpoint.executePostRecv();
 
@@ -54,8 +54,9 @@ public class RdmaProcess implements Runnable{
                 int lkey = recvBuffer.getInt();
                 int mapperId = recvBuffer.getInt();
                 int reducerId = recvBuffer.getInt();
+                int length = recvBuffer.getInt();
                 recvBuffer.clear();
-                DiSNILogger.getLogger().info("information received, mapperId " + mapperId + " for reducerId " + reducerId);
+                //DiSNILogger.getLogger().info("information received, mapperId " + mapperId + " for reducerId " + reducerId + " Length " + length);
 
                 ByteBuffer dataBuf = endpoint.getDataBuf();
                 dataBuf.clear();
@@ -79,7 +80,7 @@ public class RdmaProcess implements Runnable{
                     MapOutputReader reader = readers.get(mapperId);
 
 
-                    Future<Integer> res = reader.getBlockFuture(reducerId, dataBuf);
+                    Future<Integer> res = reader.getBlockFuture(reducerId, dataBuf, 0, length);
                     bufferFutures.add(res);
                     LOGGER.info(String.valueOf(res.isDone()));
                     int len =  bufferFutures.get(bufferFutures.size()-1).get();
