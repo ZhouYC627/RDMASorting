@@ -24,9 +24,8 @@ public class RdmaProcess implements Runnable{
         this.LOGGER =  DiSNILogger.getLogger();
         this.pendingRequestsFromReducer = pendingRequestsFromReducer;
         this.jobQueue = jobQueue;
-        this.pendingRequestsFromReducer = pendingRequestsFromReducer;
         this.readers = readers;
-        this.localMode = true;
+        this.localMode = false;
     }
 
     @Override

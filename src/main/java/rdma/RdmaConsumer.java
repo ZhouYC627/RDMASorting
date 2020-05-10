@@ -4,6 +4,7 @@ import com.ibm.disni.util.DiSNILogger;
 
 import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutionException;
 
 public class RdmaConsumer implements Runnable {
     private final ArrayBlockingQueue<RdmaJob> jobQueue;
@@ -17,18 +18,18 @@ public class RdmaConsumer implements Runnable {
         DiSNILogger.getLogger().info("Rdma Consumer running....");
         while (true) {
             try {
-                DiSNILogger.getLogger().info("Waiting for jobs");
+                //DiSNILogger.getLogger().info("Waiting for jobs");
                 RdmaJob job = jobQueue.take();
-                DiSNILogger.getLogger().info("Found Job");
+                //DiSNILogger.getLogger().info("Found Job");
                 if (job.isDone()) {
-                    DiSNILogger.getLogger().info("Job finished and perform RDMA Write");
+                    //DiSNILogger.getLogger().info("Job finished and perform RDMA Write");
                     job.sendData();
                 }else {
-                    DiSNILogger.getLogger().info("Job not finished and check next Job");
+                    //DiSNILogger.getLogger().info("Job not finished and check next Job");
                     jobQueue.add(job);
                 }
 
-            } catch (InterruptedException | IOException e) {
+            } catch (InterruptedException | IOException | ExecutionException e) {
                 e.printStackTrace();
             }
 
