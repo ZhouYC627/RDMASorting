@@ -24,15 +24,36 @@ public class MapOutputReadServer extends Thread {
     @Override
     public void run(){
         while (true){
+
             try {
                 System.out.println("Waiting for conncetion...");
                 System.out.println("Port: " + serverSocket.getLocalPort());
 
                 Socket server = serverSocket.accept();
-                System.out.println("Connected to: " + server.getRemoteSocketAddress());
 
+                Thread clientHandler = new ClientHandler(server);
+                clientHandler.start();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    class ClientHandler extends Thread{
+        Socket server;
+        public ClientHandler(Socket server){
+            this.server = server;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("Connected to: " + server.getRemoteSocketAddress());
+
+            try {
                 DataInputStream in = new DataInputStream(server.getInputStream());
                 String outputName = in.readUTF();
+                //String attemptId = in.readUTF();
                 int mapperId = in.readInt();
                 System.out.println(outputName);
                 ArrayList<IndexRecord> indexList = getIndexList(in);
@@ -51,8 +72,8 @@ public class MapOutputReadServer extends Thread {
                     System.out.print((char)buf.get());
                 }*/
                 server.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+            }catch (IOException ioe){
+                ioe.printStackTrace();
             }
         }
     }
@@ -62,7 +83,7 @@ public class MapOutputReadServer extends Thread {
         ArrayList<IndexRecord> indexList = new ArrayList<>();
 
         int partitions = in.readInt();
-
+        System.out.println("Partitions: " + partitions);
         for (int i = 0; i < partitions; i++){
             long startOffset = in.readLong();
             long rawLength = in.readLong();

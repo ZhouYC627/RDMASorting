@@ -2,8 +2,9 @@ package rdma;
 
 import com.ibm.disni.RdmaActiveEndpoint;
 import com.ibm.disni.RdmaActiveEndpointGroup;
-import com.ibm.disni.verbs.*;
 import com.ibm.disni.util.DiSNILogger;
+import com.ibm.disni.verbs.*;
+import rdma.RdmaConfigs;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -11,97 +12,108 @@ import java.util.LinkedList;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class MapperEndpoint extends RdmaActiveEndpoint {
+    private ByteBuffer dataBuffer; // used receive the data that read from Mapper
     private ByteBuffer recvBuffer; // used to receive the memory information from Mapper
-    private SVCPostRecv postRecv;
+
+    private IbvMr dataMr;
+    private IbvMr recvMr;
+
+    private IbvSendWR writeWR;
+    private IbvRecvWR recvWR;
+
+    private LinkedList<IbvRecvWR> recvWR_list;
+    private LinkedList<IbvSendWR> writeWR_list;
+
+    // scattered/gathered element
+    private IbvSge sgeWrite;
+    private LinkedList<IbvSge> sgeList_write;
+
+    private IbvSge sgeRecv;
+    private LinkedList<IbvSge> sgeList_recv;
+
+    private ArrayBlockingQueue<IbvWC> receiveCompletionEvents;
     private ArrayBlockingQueue<IbvWC> writingCompletionEvents;
     private ArrayBlockingQueue<MapperEndpoint> pendingRequestsFromReducer;
 
+    //TODO only for testing
+    private int recvId = 0;
+    private int sendId = 10;
+
     public MapperEndpoint(RdmaActiveEndpointGroup<? extends MapperEndpoint> endpointGroup, RdmaCmId idPriv, boolean serverSide) throws IOException {
         super(endpointGroup, idPriv, serverSide);
+
+        this.dataBuffer = ByteBuffer.allocateDirect(64 * 1024);
+        this.recvBuffer = ByteBuffer.allocateDirect(RdmaConfigs.SEND_RECV_SIZE);
+
+        this.recvWR = new IbvRecvWR();
+        this.writeWR =  new IbvSendWR();
+
+        this.recvWR_list = new LinkedList<>();
+        this.writeWR_list = new LinkedList<>();
+
+        this.sgeRecv = new IbvSge();
+        this.sgeWrite = new IbvSge();
+
+        this.sgeList_recv = new LinkedList<>();
+        this.sgeList_write = new LinkedList<>();
+
+        receiveCompletionEvents = new ArrayBlockingQueue<>(100);
         writingCompletionEvents = new ArrayBlockingQueue<>(100);
     }
 
-    public IbvMr registerMr(ByteBuffer buffer) throws IOException {
-        return this.registerMemory(buffer).execute().free().getMr();
+    public void executePostRecv() throws IOException {
+        this.recvWR_list.clear();
+        this.sgeList_recv.clear();
+
+        sgeRecv.setAddr(recvMr.getAddr());
+        sgeRecv.setLength(recvMr.getLength());
+        sgeRecv.setLkey(recvMr.getLkey());
+        sgeList_recv.add(sgeRecv);
+
+        recvWR.setWr_id(recvId++);
+        recvWR.setSg_list(sgeList_recv);
+
+        recvWR_list.add(recvWR);
+
+        postRecv(recvWR_list).execute().free();
+        DiSNILogger.getLogger().info("PostRecv!");
+
     }
 
-    public LinkedList<IbvSendWR> prepareSendWrList(IbvMr mr, int length) {
-        LinkedList<IbvSendWR> sendWr_list = new LinkedList<>();
-        IbvSge sge = new IbvSge();
-        sge.setAddr(mr.getAddr());
-        sge.setLength(length);
-        sge.setLkey(mr.getLkey());
-        LinkedList<IbvSge> sgeList = new LinkedList<>();
-        sgeList.add(sge);
+    public void executeRDMAWrite(long addr1, int lkey1) throws IOException {
+        this.writeWR_list.clear();
+        this.sgeList_write.clear();
 
-        IbvSendWR sendWr = new IbvSendWR();
-        sendWr.setWr_id(RdmaConfigs.getNextWrID());
-        sendWr.setOpcode(IbvSendWR.IBV_WR_SEND);
-        sendWr.setSg_list(sgeList);
-        sendWr.setSend_flags(IbvSendWR.IBV_SEND_SIGNALED);
-        sendWr_list.add(sendWr);
+        sgeWrite.setAddr(dataMr.getAddr()); // address of the local data buffer that the data will be gathered from or scattered to.
+        sgeWrite.setLength(dataMr.getLength()); // the size of the data that will be read from / written to this address.
+        sgeWrite.setLkey(dataMr.getLkey()); //  the local key of the MR that was registered to this buffer.
+        sgeList_write.add(sgeWrite);
 
-        return sendWr_list;
+        writeWR.setWr_id(sendId++);  // user-defined identifier that will be returned in the completion element for this work request
+        writeWR.setSg_list(sgeList_write); //sgeList: a pointer to a list of buffers and their sizes where the data to be transmitted is located
+        writeWR.setOpcode(IbvSendWR.IBV_WR_RDMA_WRITE_WITH_IMM); // describe type of the operation: here is SEND operation
+        writeWR.setSend_flags(IbvSendWR.IBV_SEND_SIGNALED);
+        writeWR.getRdma().setRemote_addr(addr1); // set remote address
+        writeWR.getRdma().setRkey(lkey1); // set remote key
+        writeWR_list.add(writeWR);
+
+
+        postSend(writeWR_list).execute().free();
+        DiSNILogger.getLogger().info("RDMA Write!");
     }
-
-
-    /** RDMA write with immediate operations, however, do notify the remote host of the immediate value
-     *  Write with immediate will consume a Receive Request. Optionally, an immediate 4 byte value may be
-     *  transmitted with the data buffer. This immediate value is presented to the receiver as part of the
-     *  receive notification, and is not contained in the data buffer.
-     */
-
-    public LinkedList<IbvSendWR> prepareRdmaWrList(IbvMr mr, int length, int opcode, long remoteAddr, int rkey) {
-        LinkedList<IbvSendWR> writeWr_list = new LinkedList<>();
-        IbvSge sge = new IbvSge();
-        sge.setAddr(mr.getAddr());
-        sge.setLength(length);
-        sge.setLkey(mr.getLkey());
-        LinkedList<IbvSge> sgeList = new LinkedList<>();
-        sgeList.add(sge);
-
-        IbvSendWR writeWr = new IbvSendWR();
-        writeWr.setWr_id(RdmaConfigs.getNextWrID());
-        writeWr.setOpcode(opcode);
-        writeWr.setSg_list(sgeList);
-        writeWr.setSend_flags(IbvSendWR.IBV_SEND_SIGNALED);
-        writeWr.getRdma().setRemote_addr(remoteAddr);
-        writeWr.getRdma().setRkey(rkey);
-        writeWr_list.add(writeWr);
-
-        return writeWr_list;
-    }
-
-    public LinkedList<IbvRecvWR> prepareRecvWrList(IbvMr mr, int length) {
-        LinkedList<IbvRecvWR> recvWr_list = new LinkedList<>();
-        IbvSge recvSge = new IbvSge();
-        recvSge.setAddr(mr.getAddr());
-        recvSge.setLength(length);
-        recvSge.setLkey(mr.getLkey());
-        LinkedList<IbvSge> sgeList_recv = new LinkedList<>();
-        sgeList_recv.add(recvSge);
-
-        IbvRecvWR recvWr = new IbvRecvWR();
-        recvWr.setWr_id(RdmaConfigs.getNextWrID());
-        recvWr.setSg_list(sgeList_recv);
-        recvWr_list.add(recvWr);
-
-        return recvWr_list;
-    }
-
 
 
     @Override
     public void init() throws IOException {
         super.init();
 
-        this.recvBuffer = ByteBuffer.allocateDirect(RdmaConfigs.SEND_RECV_SIZE);
-        IbvMr recvMr = registerMr(recvBuffer);
-        LinkedList<IbvRecvWR> recvWr_list = prepareRecvWrList(recvMr, recvMr.getLength());
-        this.postRecv = postRecv(recvWr_list);
-        this.postRecv.execute();
+        // register the memory regions of the data buffer
+        dataMr = registerMemory(dataBuffer).execute().free().getMr();
+        recvMr = registerMemory(recvBuffer).execute().free().getMr();
 
-        DiSNILogger.getLogger().info("Init PostRecv");
+        // init a RECEIVE request
+        this.executePostRecv();
+        DiSNILogger.getLogger().info("Init postRecv");
 
     }
 
@@ -111,25 +123,50 @@ public class MapperEndpoint extends RdmaActiveEndpoint {
     }
 
     @Override
-    public void dispatchCqEvent(IbvWC wc){
-        if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_RECV)) {
+    public void dispatchCqEvent(IbvWC wc) throws IOException {
+        if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_RDMA_WRITE)) {
+            DiSNILogger.getLogger().info("RMDA Write with IMM Completed!");
+            writingCompletionEvents.add(wc); // this wc events for send events
+
+        }
+        else if (IbvWC.IbvWcOpcode.valueOf(wc.getOpcode()).equals(IbvWC.IbvWcOpcode.IBV_WC_RECV)){
             DiSNILogger.getLogger().info("Recv Completion WR in RequestQueue!");
             pendingRequestsFromReducer.add(this);
-        } else{
-            DiSNILogger.getLogger().info("Writing Completed!");
-            writingCompletionEvents.add(wc); // this wc events for send events
+            //TODO testing
+            receiveCompletionEvents.add(wc);
+
         }
     }
 
-    public ArrayBlockingQueue<IbvWC> getWcEvents() {
-        return writingCompletionEvents;
+    public ArrayBlockingQueue<IbvWC> getReceiveCompletionEvents() {
+        return receiveCompletionEvents;
+    }
+
+    public ArrayBlockingQueue<IbvWC> getWritingCompletionEvents() { return writingCompletionEvents;}
+
+    public ByteBuffer getDataBuf() {
+        return dataBuffer;
     }
 
     public ByteBuffer getRecvBuf() {
         return recvBuffer;
     }
 
-    public SVCPostRecv getPostRecv() {
-        return this.postRecv;
-    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

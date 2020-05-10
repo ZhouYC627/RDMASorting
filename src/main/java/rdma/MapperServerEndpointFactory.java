@@ -28,10 +28,6 @@ public class MapperServerEndpointFactory implements RdmaEndpointFactory<MapperEn
         return new MapperEndpoint(endpointGroup, id, serverSide);
     }
 
-    public void close() throws IOException, InterruptedException {
-        endpointGroup.close();
-    }
-
     public RdmaActiveEndpointGroup<MapperEndpoint> getEndpointGroup() {
         return this.endpointGroup;
     }
